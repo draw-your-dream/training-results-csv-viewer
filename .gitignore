@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+tmp/
+.tmp/
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+coverage/
+*.tsbuildinfo
+
+# Compiled assets
+app.js
+app.js.map
+
+# Local environment metadata
+.env
+.env.*
+
+.vscode/
+.idea/
+
+/server-data/*
+!server-data/.gitkeep

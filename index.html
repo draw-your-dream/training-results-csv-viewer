@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CSV Viewer</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="app-initializing">
+    <main class="container">
+      <header>
+        <h1>CSV Viewer</h1>
+        <p>上传或拖拽一个 CSV 文件，内容将以表格形式展示，图片链接会自动渲染。</p>
+      </header>
+
+      <section class="controls">
+        <label class="file-input">
+          <input id="csvFile" type="file" accept=".csv,text/csv" />
+          <span>选择 CSV 文件</span>
+        </label>
+        <button id="sampleBtn" type="button">载入示例</button>
+      </section>
+
+      <section id="dropZone" class="drop-zone" tabindex="0">
+        <p>将 CSV 文件拖拽到这里，或点击上方按钮选择</p>
+      </section>
+
+      <section id="status" class="status" aria-live="polite"></section>
+
+      <section class="server-explorer" aria-labelledby="serverExplorerTitle">
+        <div class="server-explorer-header">
+          <h2 id="serverExplorerTitle">服务器 CSV</h2>
+          <button id="serverRefreshBtn" type="button">刷新</button>
+        </div>
+        <p class="server-explorer-desc">像文件管理器一样浏览 server-data 目录，点击 CSV 文件即可加载。</p>
+        <nav id="serverBreadcrumb" class="server-breadcrumb" aria-label="服务器路径"></nav>
+        <div id="serverExplorerList" class="server-explorer-list" role="list" aria-live="polite"></div>
+      </section>
+
+      <section id="tableSection" class="table-section" hidden>
+        <div class="table-view-header">
+          <button id="tableBackBtn" type="button" aria-label="返回服务器浏览">← 返回</button>
+          <div class="table-view-meta">
+            <strong id="tableFileLabel">CSV 预览</strong>
+            <a
+              id="tableFilePath"
+              class="table-file-link"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+            ></a>
+          </div>
+        </div>
+        <div class="table-section-content">
+          <section id="tableWrapper" class="table-wrapper" hidden>
+            <table id="csvTable"></table>
+          </section>
+        </div>
+      </section>
+      <section
+        id="previewOverlay"
+        class="preview-overlay"
+        hidden
+        role="dialog"
+        aria-modal="true"
+        aria-label="图片预览"
+      >
+        <div class="preview-dialog">
+          <button id="previewClose" type="button" class="preview-close" aria-label="关闭预览">
+            ×
+          </button>
+          <div class="preview-image-wrapper">
+            <img id="previewImage" alt="CSV 图片预览" />
+          </div>
+          <div class="preview-toolbar" role="toolbar" aria-label="图片操作">
+            <button type="button" class="preview-action" data-action="rotate-left" aria-label="向左旋转">
+              ↺
+            </button>
+            <button type="button" class="preview-action" data-action="rotate-right" aria-label="向右旋转">
+              ↻
+            </button>
+            <button type="button" class="preview-action" data-action="zoom-in" aria-label="放大">
+              +
+            </button>
+            <span id="zoomIndicator" class="preview-zoom" aria-live="polite">100%</span>
+            <button type="button" class="preview-action" data-action="zoom-out" aria-label="缩小">
+              −
+            </button>
+            <button type="button" class="preview-action" data-action="reset" aria-label="重置">
+              ⟳
+            </button>
+          </div>
+          <p id="previewCaption"></p>
+        </div>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
