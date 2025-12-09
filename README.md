@@ -1,35 +1,40 @@
-## CSV Viewer
+## CSV Viewer (Next.js 版本)
 
-一个零依赖的前端应用，可上传/拖拽本地 CSV、浏览服务器 `server-data/` 目录，并提供图片预览、缩放与旋转等交互。页面使用纯 HTML/CSS/TypeScript 构建，可直接部署到任何静态站点。
+使用 Next.js + React + TypeScript 重写的 CSV Viewer。延续原有“上传/拖拽 CSV、本地 & 服务器目录浏览、图片预览”等特性，并通过 API Route 直接读取 `public/server-data`，不再依赖目录索引解析，结构更清晰，可直接部署到 Vercel、Netlify、Nginx 等任意支持 Node/静态资源的环境。
 
 ### 功能亮点
-- 本地 & 服务器 CSV：支持文件选择、拖拽，以及像文件资源管理器一样层级浏览 `server-data/`。
-- 深链直达：访问 `https://mydomain.com/path/to/file.csv` 会直接渲染对应的服务器 CSV，同时阻止直接访问 `/server-data/...`。
-- 图片增强：自动识别 URL 并内嵌图片，提供放大、缩小、重置、旋转、拖拽、滚轮缩放及预览遮罩。
-- 表格视图切换：加载服务器 CSV 后，界面切换为全屏表格并显示可分享的链接和返回按钮。
+- **本地处理**：拖拽或选择 CSV 文件即时渲染；保留示例数据一键加载。
+- **服务器浏览**：React 版文件浏览器列出 `public/server-data` 的层级结构，支持子目录、面包屑与刷新。
+- **深链直达**：访问 `https://your-host.com/foo/bar.csv` 这类路径会直接进入表格视图，并给出可分享链接。
+- **富媒体单元格**：自动识别图片 / URL，带缩放、旋转、拖拽的全屏图片预览，大表格亦可滚动浏览。
+- **服务器相对资源**：在服务器 CSV 中可填写 `./foo/bar.png`（相对于 `server-data/`）等路径来引用本地图片文件。
 
-### 开发与构建
+### 开发命令
 ```bash
-yarn install        # 安装依赖
-yarn dev            # 以 --watch 模式编译 TypeScript
-yarn build          # 生成生产版 app.js
+npm install          # 安装依赖
+npm run dev          # 启动 Next.js 开发服务器（默认 http://localhost:3000）
+npm run lint         # 可选：运行 ESLint
+npm run build        # 生产构建
+npm run start        # 以生产模式启动（需先 build）
 ```
 
-`tsconfig.json` 将 `src/app.ts` 输出到项目根目录（覆盖现有的 `app.js`）。开发时可在一个终端运行 `yarn dev`，另开一个静态服务器（例如 `npx serve .`）便于在浏览器测试。
-
-### 静态资源结构
-- `index.html`：SPA 框架，所有深链导航都会被 service worker 重写回此文件。
-- `styles.css`：界面样式及响应式布局。
-- `app.js`：TypeScript 编译结果，负责状态管理、CSV 解析、路由和图片预览。
-- `service-worker.js`：拦截导航请求，确保 `/server-data/...` 返回 404，同时让虚拟 CSV 路径回退到 `index.html`。
-- `server-data/`：在服务器上暴露的静态 CSV 目录（可含子目录）。
-
-### 预览 & 深链
-1. 启动任意静态服务器根目录指向本项目（例如 `yarn dev & npx serve .`）。
-2. 在浏览器访问 `http://localhost:3000/test-subfolder/test-sub.csv` 之类的路径。
-3. 首屏直接显示表格视图；从左上角“返回”可回到服务器浏览器界面。
+### 目录结构
+```
+app/
+  [[...virtual]]/page.tsx   # 捕获所有路径的页面，负责深链加载
+  api/server-data/route.ts  # 读取 public/server-data 的 API
+  globals.css               # 继承原样式
+components/
+  CsvViewerApp.tsx          # 主界面+状态管理（client component）
+  CsvTable.tsx              # 表格渲染与单元格内容识别
+lib/
+  csv.ts                    # 轻量 CSV 解析器
+public/server-data/         # 示例 CSV 与可共享的静态资源
+```
 
 ### 部署提示
-- 将整个目录上传到静态托管（如 Vercel、Netlify、自建 Nginx）。
-- 确保入口路由全部回退到 `index.html`，或者保留 `service-worker.js` 负责处理导航请求。
-- 如需从服务器端动态生成 `server-data/`，只需保证最终对外暴露为静态目录即可，无需改动前端代码。
+- 构建输出为标准 Next.js 应用，可直接部署到 Vercel/Netlify，也可通过 `npm run build && npm run start` 自行托管。
+- 所有静态 CSV 放在 `public/server-data`，部署后访问路径即 `https://host/server-data/xxx.csv`，前端通过 `/api/server-data` 列出目录。
+- 如需动态生成 CSV，可在构建或运行阶段写入 `public/server-data`，或扩展 API route 以读取其他目录。
+- 深链依赖 Next.js 的 catch-all 路由，无需额外的 service worker 重写逻辑。
+- 若需禁止浏览器直接访问 `/server-data/**`，请在宿主服务器或 CDN 上配置鉴权/重写策略（当前实现默认将其公开为静态资源）。
