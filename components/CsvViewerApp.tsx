@@ -87,6 +87,8 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
   const [tableLoading, setTableLoading] = useState(Boolean(initialVirtualPath));
   const [tableSource, setTableSource] = useState<TableSource>(initialVirtualPath ? "server" : null);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [columnVisibility, setColumnVisibility] = useState<boolean[]>([]);
+  const [columnOrder, setColumnOrder] = useState<number[]>([]);
   const [dropActive, setDropActive] = useState(false);
   const [preview, setPreview] = useState<PreviewState>(INITIAL_PREVIEW_STATE);
   const [isDraggingPreview, setIsDraggingPreview] = useState(false);
@@ -155,20 +157,27 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
         const rows = parseCsv(text);
         if (!rows.length || rows.every((row) => row.every((cell) => !cell.trim()))) {
           setTableRows(null);
+          setColumnVisibility([]);
+          setColumnOrder([]);
           setTableLoading(false);
           setTableSource(null);
           showStatus("CSV 内容为空，无法展示。");
           return;
         }
+        const maxColumns = getMaxColumnCount(rows);
         setTableRows(rows);
         setTableLabel(label ?? "CSV 预览");
         setTableVirtualPath(virtualPath ?? null);
         setTableSource(source);
+        setColumnVisibility(Array.from({ length: maxColumns }, () => true));
+        setColumnOrder(Array.from({ length: maxColumns }, (_, index) => index));
         setTableLoading(false);
         showStatus(`成功载入 ${rows.length} 行数据。`);
       } catch (error) {
         console.error(error);
         setTableRows(null);
+        setColumnVisibility([]);
+        setColumnOrder([]);
         setTableLoading(false);
         setTableSource(null);
         showStatus("解析 CSV 失败，请检查文件格式。", true);
@@ -262,6 +271,8 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
       lastVirtualRef.current = null;
       if (tableSource === "server") {
         setTableRows(null);
+        setColumnVisibility([]);
+        setColumnOrder([]);
         setTableLabel("CSV 预览");
         setTableVirtualPath(null);
         setTableLoading(false);
@@ -307,6 +318,8 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
 
   const handleBackToExplorer = useCallback(() => {
     setTableRows(null);
+    setColumnVisibility([]);
+    setColumnOrder([]);
     setTableLabel("CSV 预览");
     setTableVirtualPath(null);
     setTableSource(null);
@@ -321,6 +334,69 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
     [sortedEntries]
   );
   const breadcrumbParts = useMemo(() => buildBreadcrumb(serverPath), [serverPath]);
+
+  const columnLabelMap = useMemo(() => {
+    if (!columnVisibility.length) {
+      return new Map<number, string>();
+    }
+    const header = tableRows?.[0] ?? [];
+    const map = new Map<number, string>();
+    columnVisibility.forEach((_, index) => {
+      const label = header[index]?.trim();
+      map.set(index, label || `列 ${index + 1}`);
+    });
+    return map;
+  }, [columnVisibility, tableRows]);
+
+  const visibleColumnCount = useMemo(
+    () => columnVisibility.reduce((count, visible) => count + (visible ? 1 : 0), 0),
+    [columnVisibility]
+  );
+
+  const toggleColumnVisibility = useCallback(
+    (index: number) => {
+      setColumnVisibility((prev) => {
+        if (index < 0 || index >= prev.length) {
+          return prev;
+        }
+        const currentlyVisible = prev[index];
+        if (currentlyVisible) {
+          const visibleCount = prev.reduce((count, flag) => count + (flag ? 1 : 0), 0);
+          if (visibleCount <= 1) {
+            return prev;
+          }
+        }
+        const next = [...prev];
+        next[index] = !next[index];
+        return next;
+      });
+    },
+    []
+  );
+
+  const columnDisplayOrder = useMemo(() => {
+    if (columnOrder.length === columnVisibility.length && columnOrder.length) {
+      return columnOrder;
+    }
+    return columnVisibility.map((_, index) => index);
+  }, [columnOrder, columnVisibility]);
+
+  const hiddenColumns = useMemo(() => {
+    if (!columnVisibility.length) {
+      return undefined;
+    }
+    const hidden = new Set<number>();
+    columnVisibility.forEach((visible, index) => {
+      if (!visible) {
+        hidden.add(index);
+      }
+    });
+    return hidden.size ? hidden : undefined;
+  }, [columnVisibility]);
+
+  const handleColumnReorder = useCallback((nextOrder: number[]) => {
+    setColumnOrder(nextOrder);
+  }, []);
 
   const resolveServerAssetUrl = useCallback((raw: string) => resolveServerAssetPath(raw), []);
   const activeAssetResolver = tableSource === "server" ? resolveServerAssetUrl : undefined;
@@ -631,13 +707,40 @@ export default function CsvViewerApp({ initialVirtualPath }: { initialVirtualPat
               <div className="table-loading-cell">正在加载 CSV …</div>
             </div>
           ) : tableRows ? (
-            <div className="table-wrapper">
-              <CsvTable
-                rows={tableRows}
-                onImageClick={openPreview}
-                resolveAssetUrl={activeAssetResolver}
-              />
-            </div>
+            <>
+              {columnVisibility.length ? (
+                <div className="table-column-controls">
+                  <span>列显示：</span>
+                  <div className="table-column-control-list" role="group" aria-label="列显示控制">
+                    {columnDisplayOrder.map((columnIndex) => {
+                      const visible = columnVisibility[columnIndex];
+                      const label = columnLabelMap.get(columnIndex) ?? `列 ${columnIndex + 1}`;
+                      return (
+                        <label key={`column-toggle-${columnIndex}`}>
+                          <input
+                            type="checkbox"
+                            checked={visible}
+                            disabled={visible && visibleColumnCount <= 1}
+                            onChange={() => toggleColumnVisibility(columnIndex)}
+                          />
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+              <div className="table-wrapper">
+                <CsvTable
+                  rows={tableRows}
+                  onImageClick={openPreview}
+                  resolveAssetUrl={activeAssetResolver}
+                  hiddenColumns={hiddenColumns}
+                  columnOrder={columnDisplayOrder}
+                  onReorderColumns={handleColumnReorder}
+                />
+              </div>
+            </>
           ) : null}
         </div>
       </section>
@@ -760,6 +863,10 @@ function getParentDirectory(path: string): string | null {
 function deriveLabelFromVirtualPath(virtualPath: string): string {
   const segments = virtualPath.split("/").filter(Boolean);
   return segments[segments.length - 1] ?? "CSV 预览";
+}
+
+function getMaxColumnCount(rows: CsvRow[]): number {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0);
 }
 
 function toServerPath(virtualPath: string): string {
