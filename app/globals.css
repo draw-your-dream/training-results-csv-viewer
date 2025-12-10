@@ -236,6 +236,7 @@ button:active,
   background: rgba(240, 242, 247, 0.95);
   color: #1b1f24;
   border-right: 1px solid #d8dfe5;
+  font-weight: 600;
 }
 
 .column-drag-preview-item.is-active {
