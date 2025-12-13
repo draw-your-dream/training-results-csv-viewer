@@ -12,9 +12,9 @@ import { parseCsv } from "@/lib/csv";
 
 const SERVER_ROOT_DIR = "server-data/";
 const SAMPLE_CSV = `名称,描述,图片
-咖啡,新鲜烘焙的手冲咖啡,https://images.unsplash.com/photo-1459257868276-5e65389e2722?auto=format&fit=crop&w=400&q=60
-甜甜圈,"招牌草莓酱, 甜而不腻",https://images.unsplash.com/photo-1483695028939-5bb13f8648b0?auto=format&fit=crop&w=400&q=60
-海报,下载链接,https://raw.githubusercontent.com/github/explore/main/topics/javascript/javascript.png`;
+url 链接图片,这是一个url链接嵌入的图片,https://images.unsplash.com/photo-1459257868276-5e65389e2722?auto=format&fit=crop&w=400&q=60
+服务器本地图片,"这是一个服务器上的本地图片",nano_preprocess/12.8/full/0/output_0.png
+s3 链接图片,这是一个s3链接嵌入的图片,s3://trash-in-picaa/nano-preprocess/12.8/full/0/output_0.png`;
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 6;
 const SERVER_PUBLIC_PREFIX = "/server-data/";
@@ -316,9 +316,21 @@ export default function CsvViewerApp({
   );
 
   const handleSample = useCallback(() => {
-    handleCsvText(SAMPLE_CSV, "示例 CSV", null, "local");
+    handleCsvText(SAMPLE_CSV, "示例 CSV", null, "server");
     router.replace("/");
   }, [handleCsvText, router]);
+
+  const handleDownloadSample = useCallback(() => {
+    const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "sample.csv";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  }, []);
 
   const openServerCsv = useCallback(
     (virtualPath: string) => {
@@ -524,7 +536,7 @@ export default function CsvViewerApp({
   }, []);
 
   const resolveServerAssetUrl = useCallback((raw: string) => resolveServerAssetPath(raw), []);
-  const activeAssetResolver = tableSource === "server" ? resolveServerAssetUrl : undefined;
+  const activeAssetResolver = resolveServerAssetUrl;
 
   const handleRefreshTableData = useCallback(() => {
     if (tableSource !== "server" || !tableVirtualPath) {
@@ -727,6 +739,9 @@ export default function CsvViewerApp({
         </label>
         <button type="button" onClick={handleSample}>
           载入示例
+        </button>
+        <button type="button" onClick={handleDownloadSample}>
+          下载示例
         </button>
       </section>
 
@@ -1055,7 +1070,14 @@ function resolveServerAssetPath(value: string): string | null {
   if (!trimmed) {
     return null;
   }
+  if (trimmed.startsWith("s3://")) {
+    return `/api/s3-presign?uri=${encodeURIComponent(trimmed)}`;
+  }
   if (isAbsoluteLikeUrl(trimmed) || trimmed.startsWith("data:")) {
+    const s3Uri = toS3UriFromHttps(trimmed);
+    if (s3Uri) {
+      return `/api/s3-presign?uri=${encodeURIComponent(s3Uri)}`;
+    }
     return trimmed;
   }
   if (trimmed.startsWith(SERVER_PUBLIC_PREFIX)) {
@@ -1079,4 +1101,41 @@ function stripParentSegments(value: string): string {
 
 function isAbsoluteLikeUrl(value: string): boolean {
   return /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value) || value.startsWith("//");
+}
+
+function toS3UriFromHttps(value: string): string | null {
+  if (value.startsWith("data:")) {
+    return null;
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch (error) {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname.replace(/^\/+/, "");
+
+  // virtual host style: bucket.s3.amazonaws.com or bucket.s3.<region>.amazonaws.com
+  const virtualHostMatch =
+    host.match(/^(.+)\.s3[.-][a-z0-9-]+\.amazonaws\.com$/i) || host.match(/^(.+)\.s3\.amazonaws\.com$/i);
+  if (virtualHostMatch) {
+    const bucket = virtualHostMatch[1];
+    if (bucket && path) {
+      return `s3://${bucket}/${path}`;
+    }
+    return null;
+  }
+
+  // path style: s3.amazonaws.com/bucket/key or s3.<region>.amazonaws.com/bucket/key
+  const pathStyleMatch = host === "s3.amazonaws.com" || /^s3[.-][a-z0-9-]+\.amazonaws\.com$/i.test(host);
+  if (pathStyleMatch) {
+    const [bucket, ...rest] = path.split("/");
+    const key = rest.join("/");
+    if (bucket && key) {
+      return `s3://${bucket}/${key}`;
+    }
+  }
+
+  return null;
 }

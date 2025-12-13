@@ -5,7 +5,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CsvRow } from "@/lib/csv";
 
-const MIN_COLUMN_WIDTH = 48;
+const MIN_COLUMN_WIDTH = 160;
 
 type CsvTableProps = {
   rows: CsvRow[];
@@ -530,11 +530,12 @@ function CellContent({ value, onImageClick, resolveAssetUrl }: CellContentProps)
   const trimmed = (value ?? "").trim();
   const resolved = trimmed ? resolveAssetUrl?.(trimmed) ?? trimmed : trimmed;
   const mediaValue = resolved || trimmed;
-  const [forceImage, setForceImage] = useState(false);
+  const looksLikeImage = isImageValue(trimmed);
+  const [forceImage, setForceImage] = useState(looksLikeImage);
 
   useEffect(() => {
-    if (!mediaValue || isImageValue(mediaValue) || !isUrl(mediaValue)) {
-      setForceImage(false);
+    if (!mediaValue || isImageValue(mediaValue) || looksLikeImage || !isUrl(mediaValue)) {
+      setForceImage(looksLikeImage);
       return;
     }
 
@@ -561,7 +562,7 @@ function CellContent({ value, onImageClick, resolveAssetUrl }: CellContentProps)
     return <span>&nbsp;</span>;
   }
 
-  if ((mediaValue && isImageValue(mediaValue)) || forceImage) {
+  if (looksLikeImage || (mediaValue && isImageValue(mediaValue)) || forceImage) {
     const src = mediaValue || trimmed;
     return (
       <img
