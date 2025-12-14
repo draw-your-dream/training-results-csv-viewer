@@ -416,9 +416,14 @@ export default function CsvViewerApp({
     setTableSource(null);
     setTableLoading(false);
     showStatus("已返回服务器浏览");
-    const search = new URLSearchParams({ dir: serverPath }).toString();
+    const targetDir = tableVirtualPath
+      ? getParentDirectory(toServerPath(tableVirtualPath)) ?? serverPath
+      : serverPath;
+    const normalizedTarget = normalizeDirectoryPath(targetDir);
+    void loadServerDirectory(normalizedTarget, { silent: true, skipUrl: true });
+    const search = new URLSearchParams({ dir: normalizedTarget }).toString();
     router.replace(`/?${search}`);
-  }, [router, serverPath, showStatus]);
+  }, [router, serverPath, showStatus, tableVirtualPath, loadServerDirectory]);
 
   const sortedEntries = useMemo(() => sortDirectoryEntries(serverEntries), [serverEntries]);
   const filteredEntries = useMemo(
