@@ -268,11 +268,19 @@ export default function CsvViewerApp({
       }
       try {
         const serverPath = toServerPath(virtualPath);
-        const response = await fetch(`/${serverPath}`, { cache: "no-store" });
+        const query = new URLSearchParams({ path: serverPath }).toString();
+        const response = await fetch(`/api/server-data-file?${query}`, {
+          cache: "no-store",
+          headers: { Accept: "text/csv, */*;q=0.9" },
+        });
         if (!response.ok) {
           throw new Error(`服务器返回 ${response.status}`);
         }
+        const contentType = response.headers.get("content-type") ?? "";
         const text = await response.text();
+        if (contentType.includes("text/html") || looksLikeHtml(text)) {
+          throw new Error("收到 HTML 而不是 CSV");
+        }
         handleCsvText(text, label, virtualPath, "server", { preserveLayout });
         if (!suppressStatus) {
           showStatus(`已加载 ${label}。`);
@@ -1048,9 +1056,16 @@ function reorderArray<T>(items: T[], fromIndex: number, toIndex: number): T[] {
   return next;
 }
 
+function looksLikeHtml(text: string): boolean {
+  const trimmed = text.trimStart().toLowerCase();
+  return trimmed.startsWith("<!doctype") || trimmed.startsWith("<html");
+}
+
 function toServerPath(virtualPath: string): string {
   const trimmed = virtualPath.replace(/^\/+/, "");
-  return `${SERVER_ROOT_DIR}${trimmed}`;
+  // Allow callers to pass paths with or without the server-data prefix
+  const withoutPrefix = trimmed.startsWith(SERVER_ROOT_DIR) ? trimmed.slice(SERVER_ROOT_DIR.length) : trimmed;
+  return `${SERVER_ROOT_DIR}${withoutPrefix}`;
 }
 
 function toVirtualPath(serverPath: string): string {
