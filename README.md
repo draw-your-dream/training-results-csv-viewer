@@ -40,8 +40,8 @@ npm run start # 生产模式（需先 build）
 拖拽或通过“选择 CSV 文件”按钮导入。文件内容只存在浏览器内存，不会上传到服务器；导入后地址栏会被重置为 `/`，防止误分享本地数据。
 
 ### 服务器目录
-所有可共享的数据与静态资源放在 `public/server-data/`。
-部署后即可通过 `/server-data/**` 访问。界面中的服务器浏览面板提供面包屑、返回上级与空目录提示，便于快速定位文件。
+默认（本地模式）会读取 `public/server-data/`，并可通过 `/server-data/**` 访问其中的静态资源。
+如需改为浏览 **S3**，设置 `S3_SERVER_DATA_ROOT=s3://bucket/prefix/`：目录与 CSV 内容将从该 S3 前缀读取，且 `/server-data/**` 会在服务端 302 跳转到对应对象的签名 URL（用于图片等资产）。
 
 ### 深链 & 分享
 `middleware.ts` 会截获浏览器直接访问 `/server-data/foo.csv` 的 HTML 请求，并重写到 `/`，同时注入 `virtual` 查询参数。`app/[[...virtual]]/page.tsx` 读取该参数并传给 `CsvViewerApp`，从而自动加载目标 CSV。右上角的文件链接可被复制或在新标签中打开，实现“所见即所得”的分享体验。
@@ -57,7 +57,10 @@ npm run start # 生产模式（需先 build）
 ```
 app/
   [[...virtual]]/page.tsx   # 捕获 / 与任意深链 CSV
-  api/server-data/route.ts  # 读取 public/server-data，返回目录结构
+  api/server-data/route.ts  # 本地读取 public/server-data；或在 S3 模式下列举 S3 前缀
+  api/server-data-file/route.ts # 本地读取 CSV；或在 S3 模式下 GetObject
+  api/s3-presign/route.ts   # 为 s3://... 生成临时访问并 302 跳转
+  server-data/[...path]/route.ts # 本地透传 /server-data/**；或在 S3 模式下 302 跳转到签名 URL
   globals.css               # 全局与交互样式
 components/
   CsvViewerApp.tsx          # 主 UI、状态管理与数据源逻辑
@@ -69,16 +72,20 @@ middleware.ts               # 深链重写与 HTML 请求识别
 ```
 
 ## API 与中间件
-- `GET /api/server-data?path=server-data/foo/`：基于 `fs.readdir` 读取服务器文件，自动忽略以 `.` 开头的条目，并阻止越界路径（path traversal）。
+- `GET /api/server-data?path=server-data/foo/`：本地模式基于 `fs.readdir` 读取 `public/server-data`；设置 `S3_SERVER_DATA_ROOT` 时改为列举对应 S3 prefix（并阻止越界路径）。
+- `GET /api/server-data-file?path=server-data/foo.csv`：读取 CSV 文本（本地或 S3）。
+- `GET /api/s3-presign?uri=s3://bucket/key`：生成临时访问 URL 并 302 跳转（用于 CSV 内嵌的 S3 资源）。
 - `middleware.ts`：只对 `Accept: text/html` 的 `GET` 请求生效，避免干扰对 `/server-data/**` 的静态资源访问；其余请求直接透传。
-- `CsvViewerApp` 在客户端通过 `fetch(/api/server-data)` 和 `fetch(/server-data/**)` 读取目录与实际 CSV，必要时携带 `cache: "no-store"` 以规避缓存。
+- `CsvViewerApp` 在客户端通过 `fetch(/api/server-data)` 和 `fetch(/api/server-data-file)` 读取目录与 CSV；图片等资产通过 `/server-data/**`（本地直读或 S3 签名跳转）。
 
 ## 部署
 1. 运行 `npm run build` 生成 `.next`.
 2. 选择托管方式：
    - **Vercel / Netlify / Railway**：直接导入仓库即可，默认 Node.js 18。
    - **自托管**：将产物与 `package.json` 一并上传，执行 `npm run start`，或封装到 Docker/PM2。
-3. 确保 `public/server-data` 目录同步到服务器（含图片等资产），否则服务器浏览面板会显示为空。
+3. 数据来源二选一：
+   - **本地模式**：确保 `public/server-data` 目录同步到服务器（含图片等资产），否则服务器浏览面板会显示为空。
+   - **S3 模式**：设置 `S3_SERVER_DATA_ROOT=s3://bucket/prefix/`，并提供对应的 AWS/S3 凭证（以及可选的 `S3_ENDPOINT`/`S3_FORCE_PATH_STYLE`）。
 4. 如需限制 `/server-data/**` 的静态访问，可在 CDN / Nginx / Apache 中添加鉴权或 rewrite，再在 `app/api/server-data` 中实现对应校验。
 
 ## 常见问题

@@ -10,9 +10,15 @@ services:
     environment:
       PORT: 3000
       HOST: "0.0.0.0"
+      # When set, the server explorer reads from this S3 prefix instead of ./public/server-data.
+      # Example: s3://my-bucket/path/to/server-data/
+      S3_SERVER_DATA_ROOT: s3://YOUR_BUCKET/YOUR_PREFIX/
       AWS_ACCESS_KEY_ID: YOUR_AWS_ACCESS_KEY_ID
       AWS_SECRET_ACCESS_KEY: YOUR_AWS_SECRET_ACCESS_KEY
       AWS_REGION: YOUR_AWS_REGION
+      # Optional S3-compatible settings (e.g., MinIO)
+      # S3_ENDPOINT: http://minio:9000
+      # S3_FORCE_PATH_STYLE: "true"
     volumes:
       - ./public/server-data:/app/public/server-data
     restart: unless-stopped
